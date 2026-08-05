@@ -1,135 +1,171 @@
-// Konfiguration der Rastergröße (muss mit CSS background-size übereinstimmen)
 const GRID_SIZE = 20;
+
+const viewport = document.getElementById('viewport') as HTMLDivElement;
+const canvas = document.getElementById('canvas') as HTMLDivElement;
+const draggableItems = document.querySelectorAll<HTMLDivElement>('.draggable-item');
+
+let scale = 1;
+let panX = 0;
+let panY = 0;
+
+let isPanning = false;
+let startPanX = 0;
+let startPanY = 0;
+let draggedType: string | null = null;
 
 function snapToGrid(value: number, gridSize: number): number {
   return Math.round(value / gridSize) * gridSize;
 }
 
-const canvas = document.getElementById('canvas') as HTMLDivElement;
-const draggableItems = document.querySelectorAll<HTMLDivElement>('.draggable-item');
+function updateTransform() {
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+}
 
-let draggedType: string | null = null;
+// 1. Pan-Funktionalität (Canvas verschieben per Drag auf freie Fläche)
+viewport.addEventListener('mousedown', (e: MouseEvent) => {
+  if ((e.target as HTMLElement).closest('.placed-element')) return; // Elemente nicht als Pan-Auslöser nutzen
+  
+  isPanning = true;
+  startPanX = e.clientX - panX;
+  startPanY = e.clientY - panY;
+});
 
-// 1. Drag-Events für die Seitenleisten-Elemente
+window.addEventListener('mousemove', (e: MouseEvent) => {
+  if (!isPanning) return;
+  panX = e.clientX - startPanX;
+  panY = e.clientY - startPanY;
+  updateTransform();
+});
+
+window.addEventListener('mouseup', () => {
+  isPanning = false;
+});
+
+// 2. Zoom-Funktionalität (Mausrad rein-/rauszoomen zum Mauszeiger)
+viewport.addEventListener('wheel', (e: WheelEvent) => {
+  e.preventDefault();
+
+  const zoomIntensity = 0.1;
+  const oldScale = scale;
+
+  if (e.deltaY < 0) {
+    scale = Math.min(scale * (1 + zoomIntensity), 4); // Max Zoom 4x
+  } else {
+    scale = Math.max(scale * (1 - zoomIntensity), 0.2); // Min Zoom 0.2x
+  }
+
+  // Zoom auf die Mausposition zentrieren
+  const rect = viewport.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  panX = mouseX - (mouseX - panX) * (scale / oldScale);
+  panY = mouseY - (mouseY - panY) * (scale / oldScale);
+
+  updateTransform();
+}, { passive: false });
+
+// 3. Drag & Drop aus der Seitenleiste
 draggableItems.forEach((item) => {
   item.addEventListener('dragstart', (e: DragEvent) => {
     draggedType = item.getAttribute('data-type');
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'copy';
-    }
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
   });
 });
 
-// 2. Canvas Drag-Over (erforderlich, um Drops zu erlauben)
-canvas.addEventListener('dragover', (e: DragEvent) => {
+viewport.addEventListener('dragover', (e: DragEvent) => {
   e.preventDefault();
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy';
-  }
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
 });
 
-// 3. Drop-Event auf dem Canvas
-canvas.addEventListener('drop', (e: DragEvent) => {
+viewport.addEventListener('drop', (e: DragEvent) => {
   e.preventDefault();
-
   if (!draggedType) return;
 
-  // Relative Koordinaten im Canvas berechnen
-  const canvasRect = canvas.getBoundingClientRect();
-  const rawX = e.clientX - canvasRect.left;
-  const rawY = e.clientY - canvasRect.top;
+  const rect = viewport.getBoundingClientRect();
+  const mouseXInViewport = e.clientX - rect.left;
+  const mouseYInViewport = e.clientY - rect.top;
 
-  // Koordinaten an das Grid anpassen
-  const snappedX = snapToGrid(rawX, GRID_SIZE);
-  const snappedY = snapToGrid(rawY, GRID_SIZE);
+  // Koordinaten unter Berücksichtigung von Pan und Zoom umrechnen
+  const contentX = (mouseXInViewport - panX) / scale;
+  const contentY = (mouseYInViewport - panY) / scale;
 
-  // Neues Element im Canvas erzeugen
+  const snappedX = snapToGrid(contentX, GRID_SIZE);
+  const snappedY = snapToGrid(contentY, GRID_SIZE);
+
   createElementOnCanvas(draggedType, snappedX, snappedY);
-
   draggedType = null;
 });
 
-// Funktion zum Platzieren des Elements
+// 4. Element erstellen
 function createElementOnCanvas(type: string, x: number, y: number): void {
   const element = document.createElement('div');
   element.classList.add('placed-element');
-  element.innerText = type === 'card' ? 'Neue Karte' : 'Neuer Button';
+
+  const label = document.createElement('span');
+  label.innerText = type === 'card' ? 'Neue Karte' : 'Neuer Button';
+  element.appendChild(label);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.innerText = '×';
+  deleteBtn.classList.add('delete-btn');
+  deleteBtn.addEventListener('click', (e: MouseEvent) => {
+    e.stopPropagation();
+    element.remove();
+  });
+  element.appendChild(deleteBtn);
 
   element.style.left = `${x}px`;
   element.style.top = `${y}px`;
 
-  // Das Element innerhalb des Canvas verschiebbar machen
   makeElementDraggableOnCanvas(element);
-
   canvas.appendChild(element);
 }
 
-// 4. Nachträgliches Verschieben von platzierten Elementen auf dem Canvas
+// 5. Bereits platzierte Elemente auf dem Canvas verschieben
 function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
-  let isDragging = false;
+  let isDraggingElement = false;
   let offsetX = 0;
   let offsetY = 0;
 
   element.addEventListener('mousedown', (e: MouseEvent) => {
-    isDragging = true;
-    
-    // Offset berechnen, damit das Element nicht an der Ecke "snappt"
-    const rect = element.getBoundingClientRect();
-    offsetX = e.clientX - rect.left;
-    offsetY = e.clientY - rect.top;
+    e.stopPropagation(); // Verhindert gleichzeitiges Panning des Canvas
+    isDraggingElement = true;
 
-    element.style.zIndex = '1000'; // Nach vorne holen beim Ziehen
+    const rect = viewport.getBoundingClientRect();
+    const mouseXInViewport = e.clientX - rect.left;
+    const mouseYInViewport = e.clientY - rect.top;
+
+    const contentMouseX = (mouseXInViewport - panX) / scale;
+    const contentMouseY = (mouseYInViewport - panY) / scale;
+
+    offsetX = contentMouseX - element.offsetLeft;
+    offsetY = contentMouseY - element.offsetTop;
+
+    element.style.zIndex = '1000';
   });
 
   window.addEventListener('mousemove', (e: MouseEvent) => {
-    if (!isDragging) return;
+    if (!isDraggingElement) return;
 
-    const canvasRect = canvas.getBoundingClientRect();
-    const rawX = e.clientX - canvasRect.left - offsetX;
-    const rawY = e.clientY - canvasRect.top - offsetY;
+    const rect = viewport.getBoundingClientRect();
+    const mouseXInViewport = e.clientX - rect.left;
+    const mouseYInViewport = e.clientY - rect.top;
 
-    const snappedX = snapToGrid(rawX, GRID_SIZE);
-    const snappedY = snapToGrid(rawY, GRID_SIZE);
+    const contentX = (mouseXInViewport - panX) / scale - offsetX;
+    const contentY = (mouseYInViewport - panY) / scale - offsetY;
+
+    const snappedX = snapToGrid(contentX, GRID_SIZE);
+    const snappedY = snapToGrid(contentY, GRID_SIZE);
 
     element.style.left = `${snappedX}px`;
     element.style.top = `${snappedY}px`;
   });
 
   window.addEventListener('mouseup', () => {
-    if (isDragging) {
-      isDragging = false;
+    if (isDraggingElement) {
+      isDraggingElement = false;
       element.style.zIndex = '1';
     }
   });
 }
-
-
-//Löschen
-
-let selectedElement: HTMLElement | null = null;
-
-// Auswählen eines Elements
-canvas.addEventListener('click', (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  const element = target.closest('.placed-element') as HTMLElement | null;
-
-  // Vorherige Auswahl aufheben
-  if (selectedElement) {
-    selectedElement.style.outline = 'none';
-  }
-
-  if (element) {
-    selectedElement = element;
-    selectedElement.style.outline = '2px solid #ef4444'; // Roter Rahmen zur Markierung
-  } else {
-    selectedElement = null; // Klick ins Leere hebt Auswahl auf
-  }
-});
-
-// Tastatur-Event zum Löschen abfangen
-window.addEventListener('keydown', (e: KeyboardEvent) => {
-  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
-    selectedElement.remove();
-    selectedElement = null;
-  }
-});

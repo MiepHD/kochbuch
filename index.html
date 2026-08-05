@@ -2,24 +2,23 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Canvas Drag & Drop Grid</title>
+  <title>Infinite Canvas mit Pan & Zoom</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app-container">
-    <!-- Seitenleiste mit Vorlagen -->
+    <!-- Seitenleiste -->
     <aside class="sidebar">
       <h3>Elemente</h3>
-      <div class="draggable-item" draggable="true" data-type="card">
-        Karte
-      </div>
-      <div class="draggable-item" draggable="true" data-type="button">
-        Button
-      </div>
+      <div class="draggable-item" draggable="true" data-type="card">Karte</div>
+      <div class="draggable-item" draggable="true" data-type="button">Button</div>
     </aside>
 
-    <!-- Canvas-Fläche -->
-    <main id="canvas" class="canvas"></main>
+    <!-- Viewport (Sichtbarer Bereich) -->
+    <div id="viewport" class="canvas-viewport">
+      <!-- Unendliche Canvas-Fläche -->
+      <div id="canvas" class="canvas-content"></div>
+    </div>
   </div>
 
   <script src="app.js"></script>
