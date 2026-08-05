@@ -1,0 +1,61 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Seitenleiste */
+.sidebar {
+  width: 220px;
+  background-color: #f4f4f5;
+  padding: 1rem;
+  border-right: 1px solid #e4e4e7;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.draggable-item {
+  padding: 0.75rem 1rem;
+  background-color: #ffffff;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  cursor: grab;
+  user-select: none;
+  font-weight: 500;
+}
+
+.draggable-item:active {
+  cursor: grabbing;
+}
+
+/* Canvas mit Karomuster (Grid Size: 20px) */
+.canvas {
+  flex-grow: 1;
+  position: relative;
+  background-color: #ffffff;
+  background-image: 
+    linear-gradient(to right, #f0f0f0 1px, transparent 1px),
+    linear-gradient(to bottom, #f0f0f0 1px, transparent 1px);
+  background-size: 20px 20px; /* Rastergröße */
+  overflow: hidden;
+}
+
+/* Platziertes Element auf dem Canvas */
+.placed-element {
+  position: absolute;
+  padding: 1rem;
+  background-color: #3b82f6;
+  color: white;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  cursor: move;
+  user-select: none;
+}

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Canvas Drag & Drop Grid</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Seitenleiste mit Vorlagen -->
+    <aside class="sidebar">
+      <h3>Elemente</h3>
+      <div class="draggable-item" draggable="true" data-type="card">
+        Karte
+      </div>
+      <div class="draggable-item" draggable="true" data-type="button">
+        Button
+      </div>
+    </aside>
+
+    <!-- Canvas-Fläche -->
+    <main id="canvas" class="canvas"></main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
