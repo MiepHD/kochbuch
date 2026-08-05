@@ -102,3 +102,34 @@ function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
     }
   });
 }
+
+
+//Löschen
+
+let selectedElement: HTMLElement | null = null;
+
+// Auswählen eines Elements
+canvas.addEventListener('click', (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  const element = target.closest('.placed-element') as HTMLElement | null;
+
+  // Vorherige Auswahl aufheben
+  if (selectedElement) {
+    selectedElement.style.outline = 'none';
+  }
+
+  if (element) {
+    selectedElement = element;
+    selectedElement.style.outline = '2px solid #ef4444'; // Roter Rahmen zur Markierung
+  } else {
+    selectedElement = null; // Klick ins Leere hebt Auswahl auf
+  }
+});
+
+// Tastatur-Event zum Löschen abfangen
+window.addEventListener('keydown', (e: KeyboardEvent) => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
+    selectedElement.remove();
+    selectedElement = null;
+  }
+});
