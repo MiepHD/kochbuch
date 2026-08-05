@@ -69,9 +69,16 @@
 /* Beständige Verbindungslinie mit Pfeil */
 .connection-line {
   stroke: #3b82f6;
-  stroke-width: 3;
+  stroke-width: 4;
   marker-end: url(#arrowhead);
-  pointer-events: none;
+  pointer-events: visibleStroke; /* Klicks auf die Linie erlauben */
+  cursor: pointer;
+  transition: stroke 0.15s ease;
+}
+
+/* Visuelles Feedback beim Drüberfahren (Roter Pfeil signalisiert Löschen) */
+.connection-line:hover {
+  stroke: #ef4444;
 }
 
 /* Vorschau-Linie beim Ziehen */

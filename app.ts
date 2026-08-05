@@ -248,7 +248,6 @@ function getElementCenter(elem: HTMLElement): { x: number; y: number } {
   };
 }
 
-// Berechnet den Schnittpunkt einer Linie mit der Außenkante der Ziel-Box
 function getIntersectionPoint(
   sourceCenter: { x: number; y: number },
   targetElem: HTMLElement
@@ -263,7 +262,6 @@ function getIntersectionPoint(
   const halfWidth = targetElem.offsetWidth / 2;
   const halfHeight = targetElem.offsetHeight / 2;
 
-  // Verhältnis bezüglich der Box-Grenzen ermitteln
   const scaleX = Math.abs(halfWidth / dx);
   const scaleY = Math.abs(halfHeight / dy);
   const minScale = Math.min(scaleX, scaleY);
@@ -282,8 +280,16 @@ function createConnection(sourceId: string, targetId: string): void {
   line.classList.add('connection-line');
   line.setAttribute('marker-end', 'url(#arrowhead)');
 
+  const connectionId = `conn-${Date.now()}`;
+
+  // Klick-Event zum Löschen einzelner Pfeile
+  line.addEventListener('click', (e: MouseEvent) => {
+    e.stopPropagation(); // Verhindert unerwünschte Canvas-Klicks
+    removeConnection(connectionId);
+  });
+
   const connection: Connection = {
-    id: `conn-${Date.now()}`,
+    id: connectionId,
     sourceId,
     targetId,
     line
@@ -294,6 +300,15 @@ function createConnection(sourceId: string, targetId: string): void {
   updateConnectionPos(connection);
 }
 
+// Funktion zum gezielten Löschen einer Verbindung
+function removeConnection(connectionId: string): void {
+  const index = connections.findIndex(c => c.id === connectionId);
+  if (index !== -1) {
+    connections[index].line.remove();
+    connections.splice(index, 1);
+  }
+}
+
 function updateConnectionPos(connection: Connection): void {
   const sourceElem = document.getElementById(connection.sourceId);
   const targetElem = document.getElementById(connection.targetId);
@@ -301,7 +316,6 @@ function updateConnectionPos(connection: Connection): void {
   if (!sourceElem || !targetElem) return;
 
   const sourcePos = getElementCenter(sourceElem);
-  // Stoppe die Linie exakt am Rand des Ziel-Elements statt in der Mitte:
   const targetEdgePos = getIntersectionPoint(sourcePos, targetElem);
 
   connection.line.setAttribute('x1', sourcePos.x.toString());
