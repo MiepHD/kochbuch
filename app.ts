@@ -2,7 +2,6 @@ const GRID_SIZE = 20;
 
 const viewport = document.getElementById('viewport') as HTMLDivElement;
 const canvas = document.getElementById('canvas') as HTMLDivElement;
-const draggableItems = document.querySelectorAll<HTMLDivElement>('.draggable-item');
 
 let scale = 1;
 let panX = 0;
@@ -20,21 +19,20 @@ function snapToGrid(value: number, gridSize: number): number {
 function updateTransform() {
   // 1. Inhalt verschieben und skalieren
   canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
-
   // 2. Raster-Hintergrund dynamisch an Pan & Zoom anpassen
   const currentGridSize = GRID_SIZE * scale;
-  
   // background-size skaliert mit dem Zoom
   viewport.style.backgroundSize = `${currentGridSize}px ${currentGridSize}px`;
-  
   // background-position verschiebt das Muster synchron zum Pan
   viewport.style.backgroundPosition = `${panX}px ${panY}px`;
 }
+updateTransform();
 
 // 1. Pan-Funktionalität (Canvas verschieben per Drag auf freie Fläche)
 viewport.addEventListener('mousedown', (e: MouseEvent) => {
   // e.button === 2 bedeutet rechte Maustaste
   if (e.button !== 2) return;
+  viewport.style.setProperty("cursor", "grabbing");
 
   isPanning = true;
   startPanX = e.clientX - panX;
@@ -50,6 +48,7 @@ window.addEventListener('mousemove', (e: MouseEvent) => {
 
 window.addEventListener('mouseup', () => {
   isPanning = false;
+  viewport.style.removeProperty("cursor");
 });
 
 // 2. Zoom-Funktionalität (Mausrad rein-/rauszoomen zum Mauszeiger)
@@ -77,6 +76,7 @@ viewport.addEventListener('wheel', (e: WheelEvent) => {
 }, { passive: false });
 
 // 3. Drag & Drop aus der Seitenleiste
+const draggableItems = document.querySelectorAll<HTMLDivElement>('.draggable-item');
 draggableItems.forEach((item) => {
   item.addEventListener('dragstart', (e: DragEvent) => {
     draggedType = item.getAttribute('data-type');
@@ -141,6 +141,7 @@ function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
 
   element.addEventListener('mousedown', (e: MouseEvent) => {
     e.stopPropagation(); // Verhindert gleichzeitiges Panning des Canvas
+    if (e.button !== 2) return;
     isDraggingElement = true;
 
     const rect = viewport.getBoundingClientRect();
@@ -153,7 +154,7 @@ function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
     offsetX = contentMouseX - element.offsetLeft;
     offsetY = contentMouseY - element.offsetTop;
 
-    element.style.zIndex = '1000';
+    element.style.setProperty("z-index", "1");
   });
 
   window.addEventListener('mousemove', (e: MouseEvent) => {
@@ -176,7 +177,7 @@ function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
   window.addEventListener('mouseup', () => {
     if (isDraggingElement) {
       isDraggingElement = false;
-      element.style.zIndex = '1';
+      element.style.removeProperty("z-index");
     }
   });
 }

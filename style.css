@@ -20,7 +20,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  z-index: 10;
 }
 
 .draggable-item {
@@ -33,8 +32,6 @@
   font-weight: 500;
 }
 
-/* Viewport verbirgt den Überstand */
-/* Der Viewport kümmert sich um das unendliche Raster */
 .canvas-viewport {
   flex-grow: 1;
   position: relative;
@@ -42,17 +39,11 @@
   background-color: #fafafa;
   cursor: grab;
 
-  /* Das Grid-Muster ist nun hier definiert */
   background-image: 
     linear-gradient(to right, #e4e4e7 1px, transparent 1px),
     linear-gradient(to bottom, #e4e4e7 1px, transparent 1px);
 }
 
-.canvas-viewport:active {
-  cursor: grabbing;
-}
-
-/* Das Canvas hat keine feste Breite/Höhe mehr */
 .canvas-content {
   position: absolute;
   top: 0;
@@ -60,11 +51,9 @@
   width: 0;
   height: 0;
   transform-origin: 0 0;
-  /* overflow ist sichtbar, damit Elemente bei negativen Top/Left-Werten sichtbar bleiben */
   overflow: visible; 
 }
 
-/* Platziertes Element */
 .placed-element {
   position: absolute;
   padding: 1rem;
@@ -77,8 +66,6 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-
-  /* Verhindert den automatischen Zeilenumbruch */
   white-space: nowrap;
 }
 
