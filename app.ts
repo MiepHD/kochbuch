@@ -2,6 +2,7 @@ const GRID_SIZE = 20;
 
 const viewport = document.getElementById('viewport') as HTMLDivElement;
 const canvas = document.getElementById('canvas') as HTMLDivElement;
+const svgLayer = document.getElementById('svg-layer') as unknown as SVGSVGElement;
 
 let scale = 1;
 let panX = 0;
@@ -11,26 +12,35 @@ let isPanning = false;
 let startPanX = 0;
 let startPanY = 0;
 let draggedType: string | null = null;
+let elementIdCounter = 0;
+
+// Verbindungs-State
+interface Connection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  line: SVGLineElement;
+}
+
+const connections: Connection[] = [];
+let isConnecting = false;
+let connectingSourceId: string | null = null;
+let tempLine: SVGLineElement | null = null;
 
 function snapToGrid(value: number, gridSize: number): number {
   return Math.round(value / gridSize) * gridSize;
 }
 
 function updateTransform() {
-  // 1. Inhalt verschieben und skalieren
   canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
-  // 2. Raster-Hintergrund dynamisch an Pan & Zoom anpassen
   const currentGridSize = GRID_SIZE * scale;
-  // background-size skaliert mit dem Zoom
   viewport.style.backgroundSize = `${currentGridSize}px ${currentGridSize}px`;
-  // background-position verschiebt das Muster synchron zum Pan
   viewport.style.backgroundPosition = `${panX}px ${panY}px`;
 }
 updateTransform();
 
-// 1. Pan-Funktionalität (Canvas verschieben per Drag auf freie Fläche)
+// 1. Pan-Funktionalität
 viewport.addEventListener('mousedown', (e: MouseEvent) => {
-  // e.button === 2 bedeutet rechte Maustaste
   if (e.button !== 2) return;
   viewport.style.setProperty("cursor", "grabbing");
 
@@ -40,18 +50,57 @@ viewport.addEventListener('mousedown', (e: MouseEvent) => {
 });
 
 window.addEventListener('mousemove', (e: MouseEvent) => {
-  if (!isPanning) return;
-  panX = e.clientX - startPanX;
-  panY = e.clientY - startPanY;
-  updateTransform();
+  // Pan ausführen
+  if (isPanning) {
+    panX = e.clientX - startPanX;
+    panY = e.clientY - startPanY;
+    updateTransform();
+    return;
+  }
+
+  // Vorschau-Pfeil beim Linksklick-Ziehen aktualisieren
+  if (isConnecting && tempLine && connectingSourceId) {
+    const sourceElem = document.getElementById(connectingSourceId);
+    if (!sourceElem) return;
+
+    const sourceCenter = getElementCenter(sourceElem);
+    const rect = viewport.getBoundingClientRect();
+    const currentCanvasX = (e.clientX - rect.left - panX) / scale;
+    const currentCanvasY = (e.clientY - rect.top - panY) / scale;
+
+    tempLine.setAttribute('x1', sourceCenter.x.toString());
+    tempLine.setAttribute('y1', sourceCenter.y.toString());
+    tempLine.setAttribute('x2', currentCanvasX.toString());
+    tempLine.setAttribute('y2', currentCanvasY.toString());
+  }
 });
 
-window.addEventListener('mouseup', () => {
-  isPanning = false;
-  viewport.style.removeProperty("cursor");
+window.addEventListener('mouseup', (e: MouseEvent) => {
+  if (isPanning) {
+    isPanning = false;
+    viewport.style.removeProperty("cursor");
+  }
+
+  // Verbindung abschließen
+  if (isConnecting) {
+    if (tempLine) {
+      tempLine.remove();
+      tempLine = null;
+    }
+
+    // Prüfen, ob die Maus über einem Ziel-Element losgelassen wurde
+    const targetElement = document.elementFromPoint(e.clientX, e.clientY)?.closest('.placed-element') as HTMLDivElement | null;
+    
+    if (targetElement && connectingSourceId && targetElement.id !== connectingSourceId) {
+      createConnection(connectingSourceId, targetElement.id);
+    }
+
+    isConnecting = false;
+    connectingSourceId = null;
+  }
 });
 
-// 2. Zoom-Funktionalität (Mausrad rein-/rauszoomen zum Mauszeiger)
+// 2. Zoom-Funktionalität
 viewport.addEventListener('wheel', (e: WheelEvent) => {
   e.preventDefault();
 
@@ -59,12 +108,11 @@ viewport.addEventListener('wheel', (e: WheelEvent) => {
   const oldScale = scale;
 
   if (e.deltaY < 0) {
-    scale = Math.min(scale * (1 + zoomIntensity), 4); // Max Zoom 4x
+    scale = Math.min(scale * (1 + zoomIntensity), 4);
   } else {
-    scale = Math.max(scale * (1 - zoomIntensity), 0.2); // Min Zoom 0.2x
+    scale = Math.max(scale * (1 - zoomIntensity), 0.2);
   }
 
-  // Zoom auf die Mausposition zentrieren
   const rect = viewport.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
@@ -97,7 +145,6 @@ viewport.addEventListener('drop', (e: DragEvent) => {
   const mouseXInViewport = e.clientX - rect.left;
   const mouseYInViewport = e.clientY - rect.top;
 
-  // Koordinaten unter Berücksichtigung von Pan und Zoom umrechnen
   const contentX = (mouseXInViewport - panX) / scale;
   const contentY = (mouseYInViewport - panY) / scale;
 
@@ -112,6 +159,7 @@ viewport.addEventListener('drop', (e: DragEvent) => {
 function createElementOnCanvas(type: string, x: number, y: number): void {
   const element = document.createElement('div');
   element.classList.add('placed-element');
+  element.id = `elem-${++elementIdCounter}`;
 
   const label = document.createElement('span');
   label.innerText = type === 'card' ? 'Neue Karte' : 'Neuer Button';
@@ -122,39 +170,54 @@ function createElementOnCanvas(type: string, x: number, y: number): void {
   deleteBtn.classList.add('delete-btn');
   deleteBtn.addEventListener('click', (e: MouseEvent) => {
     e.stopPropagation();
-    element.remove();
+    removeElement(element.id);
   });
   element.appendChild(deleteBtn);
 
   element.style.left = `${x}px`;
   element.style.top = `${y}px`;
 
-  makeElementDraggableOnCanvas(element);
+  makeElementInteractable(element);
   canvas.appendChild(element);
 }
 
-// 5. Bereits platzierte Elemente auf dem Canvas verschieben
-function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
+// 5. Interaktion & Verschieben für platzierte Elemente
+function makeElementInteractable(element: HTMLDivElement): void {
   let isDraggingElement = false;
   let offsetX = 0;
   let offsetY = 0;
 
   element.addEventListener('mousedown', (e: MouseEvent) => {
-    e.stopPropagation(); // Verhindert gleichzeitiges Panning des Canvas
-    if (e.button !== 2) return;
-    isDraggingElement = true;
+    e.stopPropagation();
 
-    const rect = viewport.getBoundingClientRect();
-    const mouseXInViewport = e.clientX - rect.left;
-    const mouseYInViewport = e.clientY - rect.top;
+    // Linksklick: Pfeilverbindung starten
+    if (e.button === 0) {
+      isConnecting = true;
+      connectingSourceId = element.id;
 
-    const contentMouseX = (mouseXInViewport - panX) / scale;
-    const contentMouseY = (mouseYInViewport - panY) / scale;
+      // Temporäre Linie im SVG erstellen
+      tempLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      tempLine.classList.add('temp-line');
+      svgLayer.appendChild(tempLine);
+      return;
+    }
 
-    offsetX = contentMouseX - element.offsetLeft;
-    offsetY = contentMouseY - element.offsetTop;
+    // Rechtsklick: Element auf Canvas verschieben
+    if (e.button === 2) {
+      isDraggingElement = true;
 
-    element.style.setProperty("z-index", "1");
+      const rect = viewport.getBoundingClientRect();
+      const mouseXInViewport = e.clientX - rect.left;
+      const mouseYInViewport = e.clientY - rect.top;
+
+      const contentMouseX = (mouseXInViewport - panX) / scale;
+      const contentMouseY = (mouseYInViewport - panY) / scale;
+
+      offsetX = contentMouseX - element.offsetLeft;
+      offsetY = contentMouseY - element.offsetTop;
+
+      element.style.setProperty("z-index", "10");
+    }
   });
 
   window.addEventListener('mousemove', (e: MouseEvent) => {
@@ -172,6 +235,9 @@ function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
 
     element.style.left = `${snappedX}px`;
     element.style.top = `${snappedY}px`;
+
+    // Alle angebundenen Pfeile beim Verschieben aktualisieren
+    updateAllConnectionsForElement(element.id);
   });
 
   window.addEventListener('mouseup', () => {
@@ -182,7 +248,68 @@ function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
   });
 }
 
-// Unterbindet das Standard-Rechtsklick-Menü auf dem gesamten Viewport
+// 6. Verbindungs-Logik & Berechnungen
+function getElementCenter(elem: HTMLElement) {
+  return {
+    x: elem.offsetLeft + elem.offsetWidth / 2,
+    y: elem.offsetTop + elem.offsetHeight / 2,
+  };
+}
+
+function createConnection(sourceId: string, targetId: string) {
+  // Duplikate vermeiden
+  const exists = connections.some(c => c.sourceId === sourceId && c.targetId === targetId);
+  if (exists) return;
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.classList.add('connection-line');
+
+  const connection: Connection = {
+    id: `conn-${Date.now()}`,
+    sourceId,
+    targetId,
+    line
+  };
+
+  svgLayer.appendChild(line);
+  connections.push(connection);
+  updateConnectionPos(connection);
+}
+
+function updateConnectionPos(connection: Connection) {
+  const sourceElem = document.getElementById(connection.sourceId);
+  const targetElem = document.getElementById(connection.targetId);
+
+  if (!sourceElem || !targetElem) return;
+
+  const sourcePos = getElementCenter(sourceElem);
+  const targetPos = getElementCenter(targetElem);
+
+  connection.line.setAttribute('x1', sourcePos.x.toString());
+  connection.line.setAttribute('y1', sourcePos.y.toString());
+  connection.line.setAttribute('x2', targetPos.x.toString());
+  connection.line.setAttribute('y2', targetPos.y.toString());
+}
+
+function updateAllConnectionsForElement(elementId: string) {
+  connections
+    .filter(c => c.sourceId === elementId || c.targetId === elementId)
+    .forEach(updateConnectionPos);
+}
+
+function removeElement(elementId: string) {
+  // Zugehörige Verbindungen entfernen
+  for (let i = connections.length - 1; i >= 0; i--) {
+    if (connections[i].sourceId === elementId || connections[i].targetId === elementId) {
+      connections[i].line.remove();
+      connections.splice(i, 1);
+    }
+  }
+
+  // Element löschen
+  document.getElementById(elementId)?.remove();
+}
+
 viewport.addEventListener('contextmenu', (e: MouseEvent) => {
   e.preventDefault();
 });
