@@ -18,13 +18,24 @@ function snapToGrid(value: number, gridSize: number): number {
 }
 
 function updateTransform() {
+  // 1. Inhalt verschieben und skalieren
   canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+
+  // 2. Raster-Hintergrund dynamisch an Pan & Zoom anpassen
+  const currentGridSize = GRID_SIZE * scale;
+  
+  // background-size skaliert mit dem Zoom
+  viewport.style.backgroundSize = `${currentGridSize}px ${currentGridSize}px`;
+  
+  // background-position verschiebt das Muster synchron zum Pan
+  viewport.style.backgroundPosition = `${panX}px ${panY}px`;
 }
 
 // 1. Pan-Funktionalität (Canvas verschieben per Drag auf freie Fläche)
 viewport.addEventListener('mousedown', (e: MouseEvent) => {
-  if ((e.target as HTMLElement).closest('.placed-element')) return; // Elemente nicht als Pan-Auslöser nutzen
-  
+  // e.button === 2 bedeutet rechte Maustaste
+  if (e.button !== 2) return;
+
   isPanning = true;
   startPanX = e.clientX - panX;
   startPanY = e.clientY - panY;
@@ -169,3 +180,8 @@ function makeElementDraggableOnCanvas(element: HTMLDivElement): void {
     }
   });
 }
+
+// Unterbindet das Standard-Rechtsklick-Menü auf dem gesamten Viewport
+viewport.addEventListener('contextmenu', (e: MouseEvent) => {
+  e.preventDefault();
+});
